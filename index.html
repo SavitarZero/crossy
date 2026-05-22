@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crossy Road</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0d1b2a; overflow: hidden; font-family: 'Nunito', 'Arial Rounded MT Bold', Arial, sans-serif; }
+    #canvas-container { width: 100vw; height: 100vh; }
+    canvas { display: block; }
+
+    /* ── HUD ──────────────────────────────────────────────────── */
+    #ui {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+    }
+
+    #score-wrap {
+      position: absolute;
+      top: 22px; left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    #score-display {
+      font-size: 56px;
+      font-weight: 900;
+      background: linear-gradient(160deg, #ffffff 30%, #ffe57a);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 3px 6px rgba(0,0,0,0.55));
+      line-height: 1;
+      letter-spacing: -1px;
+    }
+
+    #best-display {
+      font-size: 13px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.72);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    /* ── Overlay backdrop ─────────────────────────────────────── */
+    #overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: all;
+      background: radial-gradient(ellipse at 50% 40%, rgba(30,60,100,0.72) 0%, rgba(5,10,20,0.82) 100%);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+
+    /* ── Modal card ───────────────────────────────────────────── */
+    .modal-card {
+      background: linear-gradient(160deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 28px;
+      padding: 44px 52px 40px;
+      max-width: 420px;
+      width: 90%;
+      box-shadow:
+        0 32px 64px rgba(0,0,0,0.55),
+        0 0 0 1px rgba(255,255,255,0.06) inset,
+        0 2px 0 rgba(255,255,255,0.18) inset;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      animation: cardIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: scale(0.82) translateY(24px); }
+      to   { opacity: 1; transform: scale(1)    translateY(0); }
+    }
+
+    /* ── Title ────────────────────────────────────────────────── */
+    .modal-title {
+      font-size: 62px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      line-height: 1;
+      margin-bottom: 6px;
+      background: linear-gradient(135deg, #ffe259 0%, #ffa751 60%, #ff6b35 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 18px rgba(255,185,50,0.55));
+    }
+
+    .modal-title.danger {
+      background: linear-gradient(135deg, #ff6b6b 0%, #ee0979 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      filter: drop-shadow(0 0 18px rgba(238,9,121,0.5));
+    }
+
+    .modal-subtitle {
+      font-size: 16px;
+      color: rgba(255,255,255,0.80);
+      margin-bottom: 28px;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Controls hint pills ──────────────────────────────────── */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 32px;
+      width: 100%;
+    }
+    .key-pill {
+      background: rgba(20,30,50,0.72);
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .key-pill .key {
+      background: #1a2a40;
+      border-radius: 6px;
+      padding: 2px 7px;
+      font-size: 14px;
+      font-weight: 800;
+      color: #ffffff;
+      min-width: 28px;
+      text-align: center;
+    }
+
+    /* ── Score panels (game over) ─────────────────────────────── */
+    .score-row {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 32px;
+      width: 100%;
+    }
+    .score-box {
+      flex: 1;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      padding: 14px 10px;
+      text-align: center;
+    }
+    .score-box .label {
+      font-size: 11px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.4);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .score-box .value {
+      font-size: 36px;
+      font-weight: 900;
+      background: linear-gradient(135deg, #fff 40%, #ffe57a);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .score-box.gold .label { color: rgba(255,215,0,0.6); }
+    .score-box.gold .value {
+      background: linear-gradient(135deg, #ffe259, #ffa751);
+      -webkit-background-clip: text;
+      background-clip: text;
+    }
+
+    /* ── Play button ──────────────────────────────────────────── */
+    #start-btn {
+      position: relative;
+      background: linear-gradient(135deg, #ffe259 0%, #ff8c00 100%);
+      border: none;
+      padding: 16px 0;
+      width: 100%;
+      border-radius: 16px;
+      font-size: 22px;
+      font-weight: 900;
+      color: #1a0a00;
+      cursor: pointer;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      box-shadow:
+        0 8px 24px rgba(255,160,0,0.45),
+        0 2px 0 rgba(255,255,255,0.35) inset;
+      transition: transform 0.12s, box-shadow 0.12s;
+      overflow: hidden;
+    }
+    #start-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.22) 0%, transparent 60%);
+      border-radius: inherit;
+    }
+    #start-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 32px rgba(255,160,0,0.6), 0 2px 0 rgba(255,255,255,0.35) inset;
+    }
+    #start-btn:active { transform: translateY(1px); box-shadow: 0 4px 12px rgba(255,160,0,0.4); }
+
+    /* ── Divider ──────────────────────────────────────────────── */
+    .modal-divider {
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+      margin: 0 0 28px;
+    }
+
+    /* ── New best badge ───────────────────────────────────────── */
+    .new-best-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,140,0,0.15));
+      border: 1px solid rgba(255,200,0,0.35);
+      border-radius: 50px;
+      padding: 5px 16px;
+      font-size: 13px;
+      font-weight: 800;
+      color: #ffd700;
+      letter-spacing: 1px;
+      margin-bottom: 24px;
+    }
+
+    .hidden { display: none !important; }
+
+    /* ── Mobile D-pad ─────────────────────────────────────────── */
+    #controls-panel {
+      position: absolute;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .ctrl-btn {
+      width: 58px; height: 58px;
+      background: rgba(255,255,255,0.1);
+      border: 1.5px solid rgba(255,255,255,0.2);
+      border-radius: 14px;
+      color: rgba(255,255,255,0.85);
+      font-size: 22px;
+      cursor: pointer;
+      pointer-events: all;
+      transition: background 0.08s, transform 0.08s;
+      display: flex; align-items: center; justify-content: center;
+      user-select: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.15) inset;
+      backdrop-filter: blur(4px);
+    }
+    .ctrl-btn:active {
+      background: rgba(255,255,255,0.25);
+      transform: scale(0.92);
+    }
+
+    /* ── Floating particles decoration ───────────────────────── */
+    .particles {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .particle {
+      position: absolute;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: rgba(255,220,80,0.6);
+      animation: float linear infinite;
+    }
+    @keyframes float {
+      0%   { transform: translateY(100vh) scale(0); opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 0.6; }
+      100% { transform: translateY(-10vh) scale(1.4); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="ui">
+
+    <!-- HUD score -->
+    <div id="score-wrap">
+      <div id="score-display">0</div>
+      <div id="best-display">BEST: 0</div>
+    </div>
+
+    <!-- Overlay (start / game-over) -->
+    <div id="overlay">
+      <!-- floating particles -->
+      <div class="particles" id="particles"></div>
+
+      <div class="modal-card">
+        <div class="modal-title">🐸 CROSSY</div>
+        <div class="modal-subtitle">How far can you hop?</div>
+
+        <div class="modal-divider"></div>
+
+        <div class="controls-grid">
+          <div class="key-pill"><span class="key">↑</span> Forward</div>
+          <div class="key-pill"><span class="key">↓</span> Back</div>
+          <div class="key-pill"><span class="key">←</span> Left</div>
+          <div class="key-pill"><span class="key">→</span> Right</div>
+        </div>
+
+        <button id="start-btn" onclick="startGame()">PLAY</button>
+      </div>
+    </div>
+
+    <!-- Mobile D-pad -->
+    <div id="controls-panel">
+      <button class="ctrl-btn" aria-label="Move left"  ontouchstart="handleTouch('left')"  onclick="handleTouch('left')">←</button>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="ctrl-btn" aria-label="Move up"   ontouchstart="handleTouch('up')"    onclick="handleTouch('up')">↑</button>
+        <button class="ctrl-btn" aria-label="Move down" ontouchstart="handleTouch('down')"  onclick="handleTouch('down')">↓</button>
+      </div>
+      <button class="ctrl-btn" aria-label="Move right" ontouchstart="handleTouch('right')" onclick="handleTouch('right')">→</button>
+    </div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    // ─── Constants ───────────────────────────────────────────────────────────
+    const TILE = 1.4;
+    const HALF = TILE / 2;
+    const COLS = 13;
+    const VISIBLE_ROWS = 20;
+    const GROUND_ROW = 0;
+    const LANE_COLORS = {
+      grassA: 0x83c44e, grassB: 0x77b544,   // checkerboard grass
+      roadA:  0x7a7a8c, roadB:  0x6e6e7e,   // checkerboard road
+      waterA: 0x3fa8d5, waterB: 0x3898c2,   // checkerboard water
+      safeA:  0x96d95e, safeB:  0x88c952,   // checkerboard safe
+    };
+    const TREE_COLORS  = [0x2d8a2d, 0x1a6e1a, 0x3a9e3a, 0x236623];
+    const CAR_COLORS   = [0xff3b3b, 0xff8c00, 0xffe234, 0x1e90ff, 0xb44eff, 0x00d4aa];
+    const LOG_COLOR    = 0xa07828;
+
+    // ─── Scene Setup ─────────────────────────────────────────────────────────
+    const W = window.innerWidth, H = window.innerHeight;
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(W, H);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x6ec6f5);
+    scene.fog = new THREE.FogExp2(0x9ddcf8, 0.028);
+
+    const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 100);
+    camera.position.set(0, 12, 10);
+    camera.lookAt(0, 0, 0);
+
+    // Lights
+    const hemi = new THREE.HemisphereLight(0xb8e4ff, 0x6ab04c, 0.7);
+    scene.add(hemi);
+
+    const ambient = new THREE.AmbientLight(0xffeedd, 0.4);
+    scene.add(ambient);
+
+    const sun = new THREE.DirectionalLight(0xfff5cc, 1.6);
+    sun.position.set(8, 18, 6);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 60;
+    sun.shadow.camera.left = -22;
+    sun.shadow.camera.right = 22;
+    sun.shadow.camera.top = 22;
+    sun.shadow.camera.bottom = -22;
+    sun.shadow.bias = -0.001;
+    scene.add(sun);
+
+    // Subtle fill light from opposite side
+    const fill = new THREE.DirectionalLight(0xaad4ff, 0.35);
+    fill.position.set(-6, 8, -4);
+    scene.add(fill);
+
+    // ─── Shared Geometries / Materials ───────────────────────────────────────
+    // tiles / vehicles / logs
+    const gTile       = new THREE.BoxGeometry(TILE - 0.02, 0.28, TILE - 0.02);  // individual tile
+    const gWaterStripe = new THREE.PlaneGeometry(COLS * TILE, TILE);             // flat stripe overlay
+    const gCarBody = new THREE.BoxGeometry(0.9, 0.35, 0.55);
+    const gCarTop  = new THREE.BoxGeometry(0.55, 0.28, 0.48);
+    const gWheel   = new THREE.CylinderGeometry(0.10, 0.10, 0.08, 8);
+    const gLog     = new THREE.CylinderGeometry(0.22, 0.22, 1.1, 10);
+
+    // frog parts — blocky Crossy Road voxel style
+    const gFrogBody  = new THREE.BoxGeometry(0.72, 0.28, 0.58);
+    const gFrogHead  = new THREE.BoxGeometry(0.68, 0.22, 0.54);
+    const gEyeStalk  = new THREE.CylinderGeometry(0.055, 0.055, 0.1, 7);
+    const gEyeball   = new THREE.SphereGeometry(0.1, 8, 7);
+    const gPupil     = new THREE.CircleGeometry(0.055, 7);
+    const gFrogLeg   = new THREE.BoxGeometry(0.22, 0.1, 0.16);
+    const gFrogFoot  = new THREE.BoxGeometry(0.2, 0.08, 0.22);
+
+    // tree shared parts
+    const gTrunkStd  = new THREE.CylinderGeometry(0.09, 0.12, 0.55, 8);
+    const gTrunkThin = new THREE.CylinderGeometry(0.05, 0.07, 0.7, 7);
+    const gTrunkPalm = new THREE.CylinderGeometry(0.06, 0.09, 1.0, 7);
+    const gSphTree   = new THREE.SphereGeometry(0.40, 10, 8);   // round fluffy
+    const gSphSmall  = new THREE.SphereGeometry(0.26, 8, 7);
+    const gCone1     = new THREE.ConeGeometry(0.38, 0.75, 7);
+    const gCone2     = new THREE.ConeGeometry(0.28, 0.58, 7);
+    const gCone3     = new THREE.ConeGeometry(0.18, 0.42, 7);
+    const gMushroomC = new THREE.SphereGeometry(0.36, 10, 6, 0, Math.PI*2, 0, Math.PI/2); // dome
+    const gMushroomS = new THREE.CylinderGeometry(0.10, 0.13, 0.35, 7);
+    const gDot       = new THREE.SphereGeometry(0.05, 5, 5);
+    const gPalmLeaf  = new THREE.SphereGeometry(0.20, 6, 5);
+    const gLollipop  = new THREE.SphereGeometry(0.38, 10, 8);
+    const gLollStick = new THREE.CylinderGeometry(0.04, 0.04, 0.7, 6);
+    const gBlossomC  = new THREE.SphereGeometry(0.38, 10, 8);
+    const gPetal     = new THREE.SphereGeometry(0.09, 5, 5);
+
+    const mWheel    = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+    const mCarGlass = new THREE.MeshLambertMaterial({ color: 0xaaddff, transparent: true, opacity: 0.7 });
+    const mLogMat   = new THREE.MeshLambertMaterial({ color: LOG_COLOR });
+    const mTrunk    = new THREE.MeshLambertMaterial({ color: 0x7a4d18 });
+    const mTrunkPalm= new THREE.MeshLambertMaterial({ color: 0xa06828 });
+    const mEye      = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    const mFrog     = new THREE.MeshLambertMaterial({ color: 0xff7a1a });
+    const mFrogDark = new THREE.MeshLambertMaterial({ color: 0xd45a00 });
+
+    // ── Crossy Road-style water stripe shader (flat, opaque) ────
+    const waterMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 } },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        varying vec2 vUv;
+        void main() {
+          // Scrolling horizontal stripe lines (Crossy Road style)
+          float scroll = vUv.x + uTime * 0.18;
+          float f = fract(scroll * 4.5);
+          float stripe = smoothstep(0.0, 0.06, f) - smoothstep(0.12, 0.20, f);
+          stripe = clamp(stripe, 0.0, 1.0);
+
+          // Subtle secondary shimmer
+          float shimmer = sin(vUv.x * 22.0 + uTime * 1.6) * 0.04 + 0.04;
+
+          vec3 colA = vec3(0.24, 0.60, 0.84);
+          vec3 colB = vec3(0.18, 0.52, 0.76);
+          vec3 lineC = vec3(0.72, 0.90, 1.00);
+
+          vec3 base = mix(colB, colA, shimmer + 0.5);
+          vec3 col  = mix(base, lineC, stripe * 0.65);
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+    });
+    const mMushroomS= new THREE.MeshLambertMaterial({ color: 0xf5e6c8 });
+    const mDotM     = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    const mStick    = new THREE.MeshLambertMaterial({ color: 0xdddddd });
+
+    // ─── State ────────────────────────────────────────────────────────────────
+    let score = 0, best = 0, maxRow = 0;
+    let isPlaying = false, isDead = false;
+    let pendingMove = null;
+    let playerHop = { active: false, t: 0, from: null, to: null };
+    let deathAnim = { active: false, t: 0 };
+    let cameraTarget = new THREE.Vector3();
+    let gameStarted = false;
+
+    // Row map: rowIndex -> { type, speed, dir, objects[] }
+    const rowData = new Map();
+    // Three.js groups per row
+    const rowGroups = new Map();
+
+    // ─── Player ──────────────────────────────────────────────────────────────
+    const playerGroup = new THREE.Group();
+    scene.add(playerGroup);
+
+    function buildFrog() {
+      const g = playerGroup;
+
+      // ── Body (flat wide box) ──────────────────────────────────
+      const body = new THREE.Mesh(gFrogBody, mFrog);
+      body.position.y = 0.14;
+      body.castShadow = true;
+      g.add(body);
+
+      // ── Head (flat box, sits flush on body) ───────────────────
+      const head = new THREE.Mesh(gFrogHead, mFrog);
+      head.position.set(0, 0.3, 0.04);
+      head.castShadow = true;
+      g.add(head);
+
+      // ── Eye stalks + eyeballs (on TOP of head, Crossy Road style)
+      const mPupilM = new THREE.MeshLambertMaterial({ color: 0x111122 });
+      for (const sx of [-0.18, 0.18]) {
+        // stalk
+        const stalk = new THREE.Mesh(gEyeStalk, mFrog);
+        stalk.position.set(sx, 0.47, 0.08);
+        g.add(stalk);
+        // white eyeball
+        const eye = new THREE.Mesh(gEyeball, mEye);
+        eye.position.set(sx, 0.56, 0.08);
+        eye.castShadow = true;
+        g.add(eye);
+        // dark pupil (flat circle facing forward)
+        const pupil = new THREE.Mesh(gPupil, mPupilM);
+        pupil.position.set(sx, 0.56, 0.175);
+        g.add(pupil);
+      }
+
+      // ── Legs (4 short pillars directly under body corners) ───
+      const legDefs = [
+        [-0.24, 0.07,  0.18],
+        [ 0.24, 0.07,  0.18],
+        [-0.24, 0.07, -0.18],
+        [ 0.24, 0.07, -0.18],
+      ];
+      for (const [lx, ly, lz] of legDefs) {
+        const leg = new THREE.Mesh(gFrogLeg, mFrogDark);
+        leg.position.set(lx, ly, lz);
+        leg.castShadow = true;
+        g.add(leg);
+      }
+    }
+    buildFrog();
+
+    let playerGrid = { row: 0, col: Math.floor(COLS / 2) };
+    playerGroup.position.set(gridToWorld(playerGrid.col), 0.15, -playerGrid.row * TILE);
+
+    function gridToWorld(n) { return (n - Math.floor(COLS / 2)) * TILE; }
+    function worldToGrid(x) { return Math.round(x / TILE) + Math.floor(COLS / 2); }
+
+    // ─── Row Generation ──────────────────────────────────────────────────────
+    function rowType(rowIdx) {
+      if (rowIdx <= 0) return 'safe';
+      if (rowIdx <= 3) return 'safe';
+      const r = Math.random();
+      if (r < 0.38) return 'road';
+      if (r < 0.60) return 'water';
+      return 'grass';
+    }
+
+    const ROW_COLOR_PAIRS = {
+      road:  [LANE_COLORS.roadA,  LANE_COLORS.roadB],
+      water: [LANE_COLORS.waterA, LANE_COLORS.waterB],
+      safe:  [LANE_COLORS.safeA,  LANE_COLORS.safeB],
+      start: [LANE_COLORS.safeA,  LANE_COLORS.safeB],
+      grass: [LANE_COLORS.grassA, LANE_COLORS.grassB],
+    };
+
+    function buildGroundTiles(group, type, rowIdx) {
+      const [colA, colB] = ROW_COLOR_PAIRS[type] ?? ROW_COLOR_PAIRS.grass;
+      for (let c = 0; c < COLS; c++) {
+        const color = (c + rowIdx) % 2 === 0 ? colA : colB;
+        const tile = new THREE.Mesh(gTile, new THREE.MeshLambertMaterial({ color }));
+        tile.position.set((c - Math.floor(COLS / 2)) * TILE, -0.14, 0);
+        tile.receiveShadow = true;
+        group.add(tile);
+      }
+    }
+
+    function buildRoadRow(group, rowIdx) {
+      const markMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+      const markGeo = new THREE.BoxGeometry(0.25, 0.01, 0.5);
+      for (let c = 0; c < COLS; c += 2) {
+        const m = new THREE.Mesh(markGeo, markMat);
+        m.position.set((c - Math.floor(COLS / 2)) * TILE, 0, 0);
+        group.add(m);
+      }
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      const speed = 0.025 + Math.random() * 0.035 + Math.min(maxRow * 0.0003, 0.04);
+      const count = 1 + Math.floor(Math.random() * 3);
+      const spacing = COLS * TILE / (count + 1);
+      const objects = [];
+      for (let i = 0; i < count; i++) {
+        const car = makeCar(CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)]);
+        car.position.x = -COLS * TILE / 2 + spacing * (i + 1);
+        car.rotation.y = dir > 0 ? 0 : Math.PI;
+        group.add(car);
+        objects.push({ mesh: car, dir, speed, type: 'car', width: 0.9 });
+      }
+      rowData.set(rowIdx, { type: 'road', objects, dir, speed });
+    }
+
+    function buildWaterRow(group, rowIdx) {
+      const surf = new THREE.Mesh(gWaterStripe, waterMat);
+      surf.rotation.x = -Math.PI / 2;
+      surf.position.set(0, -0.01, 0);
+      group.add(surf);
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      const speed = 0.018 + Math.random() * 0.022;
+      const count = 2 + Math.floor(Math.random() * 2);
+      const spacing = COLS * TILE / count;
+      const objects = [];
+      for (let i = 0; i < count; i++) {
+        const log = makeLog(1 + Math.floor(Math.random() * 2));
+        log.position.x = -COLS * TILE / 2 + spacing * i + Math.random() * spacing * 0.3;
+        group.add(log);
+        objects.push({ mesh: log, dir, speed, type: 'log', width: log.userData.width });
+      }
+      rowData.set(rowIdx, { type: 'water', objects, dir, speed });
+    }
+
+    function buildGrassRow(group, rowIdx, type) {
+      const safeCols = new Set([5, 6, 7]);
+      const objects = [];
+      for (let c = 0; c < COLS; c++) {
+        if (rowIdx === 0 || (safeCols.has(c) && rowIdx > 0)) continue;
+        if (Math.random() < 0.28) {
+          const tree = makeTree();
+          tree.position.set((c - Math.floor(COLS / 2)) * TILE, 0, 0);
+          group.add(tree);
+          objects.push({ col: c, type: 'tree' });
+        }
+      }
+      rowData.set(rowIdx, { type: type === 'start' ? 'safe' : 'grass', objects });
+    }
+
+    function generateRow(rowIdx) {
+      if (rowGroups.has(rowIdx)) return;
+
+      const type = rowIdx <= 3 ? (rowIdx === 0 ? 'start' : 'safe') : rowType(rowIdx);
+      const group = new THREE.Group();
+      group.position.z = -rowIdx * TILE;
+      scene.add(group);
+      rowGroups.set(rowIdx, group);
+
+      buildGroundTiles(group, type, rowIdx);
+
+      if (type === 'road')       buildRoadRow(group, rowIdx);
+      else if (type === 'water') buildWaterRow(group, rowIdx);
+      else                       buildGrassRow(group, rowIdx, type);
+    }
+
+    function makeCar(color) {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(gCarBody, new THREE.MeshLambertMaterial({ color }));
+      body.position.y = 0.2;
+      body.castShadow = true;
+      g.add(body);
+
+      const top = new THREE.Mesh(gCarTop, mCarGlass);
+      top.position.set(0, 0.44, 0);
+      g.add(top);
+
+      const wheelOff = [[0.4, 0.1, 0.29], [-0.4, 0.1, 0.29], [0.4, 0.1, -0.29], [-0.4, 0.1, -0.29]];
+      for (const [wx, wy, wz] of wheelOff) {
+        const w = new THREE.Mesh(gWheel, mWheel);
+        w.rotation.z = Math.PI / 2;
+        w.position.set(wx, wy, wz);
+        g.add(w);
+      }
+      return g;
+    }
+
+    function makeLog(segments) {
+      const g = new THREE.Group();
+      const width = segments * 1.2;
+      for (let i = 0; i < segments; i++) {
+        const log = new THREE.Mesh(gLog, mLogMat);
+        log.rotation.z = Math.PI / 2;
+        log.position.set(i * 1.2 - (segments - 1) * 0.6, 0.1, 0);
+        log.castShadow = true;
+        g.add(log);
+      }
+      g.userData.width = width;
+      return g;
+    }
+
+    function randCol(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+    function makeTreeFluffy(g) {
+      const tm = new THREE.MeshLambertMaterial({ color: randCol(TREE_COLORS) });
+      const trunk = new THREE.Mesh(gTrunkStd, mTrunk);
+      trunk.position.y = 0.28; trunk.castShadow = true; g.add(trunk);
+      const top = new THREE.Mesh(gSphTree, tm);
+      top.position.y = 0.88; top.castShadow = true; g.add(top);
+      for (const [ox, oz] of [[-0.22, 0.1], [0.22, -0.1]]) {
+        const puff = new THREE.Mesh(gSphSmall, tm);
+        puff.position.set(ox, 0.72, oz); g.add(puff);
+      }
+    }
+
+    function makeTreePine(g) {
+      const tm = new THREE.MeshLambertMaterial({ color: randCol(TREE_COLORS) });
+      const trunk = new THREE.Mesh(gTrunkStd, mTrunk);
+      trunk.position.y = 0.28; trunk.castShadow = true; g.add(trunk);
+      const c1 = new THREE.Mesh(gCone1, tm); c1.position.y = 0.82; c1.castShadow = true; g.add(c1);
+      const c2 = new THREE.Mesh(gCone2, tm); c2.position.y = 1.18; g.add(c2);
+      const c3 = new THREE.Mesh(gCone3, tm); c3.position.y = 1.46; g.add(c3);
+    }
+
+    function makeTreePalm(g) {
+      const trunk = new THREE.Mesh(gTrunkPalm, mTrunkPalm);
+      trunk.position.y = 0.5; trunk.rotation.z = 0.15; trunk.castShadow = true; g.add(trunk);
+      const leafMat = new THREE.MeshLambertMaterial({ color: 0x28a040 });
+      for (const ang of [0, 1.2, 2.4, 3.6, 4.8]) {
+        const leaf = new THREE.Mesh(gPalmLeaf, leafMat);
+        leaf.scale.set(1.5, 0.5, 1);
+        leaf.position.set(Math.cos(ang) * 0.28, 1.08, Math.sin(ang) * 0.28);
+        leaf.rotation.y = ang; leaf.castShadow = true; g.add(leaf);
+      }
+      const cMat = new THREE.MeshLambertMaterial({ color: 0x8b5e2a });
+      for (const ang of [0.6, 2.1, 3.8]) {
+        const nut = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), cMat);
+        nut.position.set(Math.cos(ang) * 0.1, 0.98, Math.sin(ang) * 0.1); g.add(nut);
+      }
+    }
+
+    function makeTreeMushroom(g) {
+      const stalk = new THREE.Mesh(gMushroomS, mMushroomS);
+      stalk.position.y = 0.18; stalk.castShadow = true; g.add(stalk);
+      const capMat = new THREE.MeshLambertMaterial({ color: randCol([0x2d9e2d, 0x3cb83c, 0x1a7a1a, 0x4dcc4d]) });
+      const cap = new THREE.Mesh(gMushroomC, capMat);
+      cap.position.y = 0.42; cap.castShadow = true; g.add(cap);
+      for (const ang of [0, 1.1, 2.3, 3.5, 4.7, 5.8]) {
+        const dot = new THREE.Mesh(gDot, mDotM);
+        dot.position.set(Math.cos(ang) * 0.26, 0.52 + Math.abs(Math.sin(ang)) * 0.06, Math.sin(ang) * 0.26);
+        g.add(dot);
+      }
+    }
+
+    function makeTreeLollipop(g) {
+      const stick = new THREE.Mesh(gLollStick, mStick);
+      stick.position.y = 0.35; stick.castShadow = true; g.add(stick);
+      const candyMat = new THREE.MeshLambertMaterial({ color: randCol([0x44cc66, 0x22aa44, 0x66dd44, 0x33bb55]) });
+      const ball = new THREE.Mesh(gLollipop, candyMat);
+      ball.position.y = 0.9; ball.castShadow = true; g.add(ball);
+      const stripeMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+      const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.04, 6, 16), stripeMat);
+      stripe.position.y = 0.9; stripe.rotation.x = Math.PI / 2; g.add(stripe);
+    }
+
+    function makeTreeBlossom(g) {
+      const trunk = new THREE.Mesh(gTrunkThin, mTrunk);
+      trunk.position.y = 0.35; trunk.castShadow = true; g.add(trunk);
+      const crown = new THREE.Mesh(gBlossomC, new THREE.MeshLambertMaterial({ color: 0x52b852 }));
+      crown.position.y = 0.92; crown.castShadow = true; g.add(crown);
+      const petalMat = new THREE.MeshLambertMaterial({ color: 0x3a9e3a });
+      for (const [px, py, pz] of [[0.3, 0.78, 0.15], [-0.28, 0.8, -0.1], [0.1, 0.84, -0.3], [-0.15, 0.76, 0.28]]) {
+        const petal = new THREE.Mesh(gPetal, petalMat);
+        petal.position.set(px, py, pz); g.add(petal);
+      }
+    }
+
+    const treeBuilders = [makeTreeFluffy, makeTreePine, makeTreePalm, makeTreeMushroom, makeTreeLollipop, makeTreeBlossom];
+
+    function makeTree() {
+      const g = new THREE.Group();
+      treeBuilders[Math.floor(Math.random() * treeBuilders.length)](g);
+      return g;
+    }
+
+    // ─── World Init ──────────────────────────────────────────────────────────
+    for (let r = -2; r <= VISIBLE_ROWS; r++) generateRow(r);
+    spawnParticles();
+
+    // ─── Input ────────────────────────────────────────────────────────────────
+    const KEY_MAP = {
+      ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+      w: 'up', s: 'down', a: 'left', d: 'right',
+      W: 'up', S: 'down', A: 'left', D: 'right',
+    };
+
+    window.addEventListener('keydown', e => {
+      if (!isPlaying || isDead) return;
+      const dir = KEY_MAP[e.key];
+      if (dir) { e.preventDefault(); queueMove(dir); }
+    });
+
+    window.handleTouch = function(dir) {
+      if (!isPlaying || isDead) return;
+      queueMove(dir);
+    };
+
+    function queueMove(dir) {
+      if (playerHop.active) return;
+      pendingMove = dir;
+    }
+
+    // ─── Move Execution ──────────────────────────────────────────────────────
+    function tryMove(dir) {
+      let { row, col } = playerGrid;
+      let nr = row, nc = col;
+      if (dir === 'up')    nr++;
+      if (dir === 'down')  nr--;
+      if (dir === 'left')  nc--;
+      if (dir === 'right') nc++;
+
+      // Boundary check
+      if (nc < 0 || nc >= COLS) return;
+      if (nr > row + 1 || nr < row - 1) return; // no big jumps vertically
+
+      // Don't let player go backwards off screen
+      if (nr < playerGrid.row - 8) return;
+
+      // Check tree blocking
+      const rd = rowData.get(nr);
+      if (rd && (rd.type === 'grass' || rd.type === 'safe')) {
+        const blocked = rd.objects.some(o => o.type === 'tree' && o.col === nc);
+        if (blocked) return;
+      }
+
+      // Start hop
+      const fromPos = playerGroup.position.clone();
+      const toX = gridToWorld(nc);
+      const toZ = -nr * TILE;
+
+      playerHop = {
+        active: true,
+        t: 0,
+        from: fromPos.clone(),
+        to: new THREE.Vector3(toX, 0.15, toZ),
+        dir,
+      };
+
+      playerGrid = { row: nr, col: nc };
+
+      // Score
+      if (nr > maxRow) {
+        maxRow = nr;
+        score = maxRow;
+        if (score > best) best = score;
+        document.getElementById('score-display').textContent = score;
+        document.getElementById('best-display').textContent = 'BEST: ' + best;
+      }
+
+      // Generate more rows ahead
+      for (let r = playerGrid.row - 2; r <= playerGrid.row + VISIBLE_ROWS; r++) generateRow(r);
+
+      // Clean up far-behind rows
+      for (const [ri, g] of rowGroups) {
+        if (ri < playerGrid.row - 6) {
+          scene.remove(g);
+          rowGroups.delete(ri);
+          rowData.delete(ri);
+        }
+      }
+    }
+
+    // ─── Death ────────────────────────────────────────────────────────────────
+    function killPlayer(cause) {
+      if (isDead) return;
+      isDead = true;
+      deathAnim = { active: true, t: 0, cause };
+      setTimeout(showGameOver, 1200);
+    }
+
+    function showGameOver() {
+      const ov = document.getElementById('overlay');
+      ov.classList.remove('hidden');
+      spawnParticles();
+      const isNewBest = score >= best && score > 0;
+      ov.innerHTML = `
+        <div class="particles" id="particles"></div>
+        <div class="modal-card">
+          <div class="modal-title danger">GAME OVER</div>
+          <div class="modal-subtitle">Better luck next time!</div>
+          <div class="modal-divider"></div>
+          <div class="score-row">
+            <div class="score-box">
+              <div class="label">SCORE</div>
+              <div class="value">${score}</div>
+            </div>
+            <div class="score-box gold">
+              <div class="label">BEST</div>
+              <div class="value">${best}</div>
+            </div>
+          </div>
+          ${isNewBest ? '<div class="new-best-badge">🏆 New Best!</div>' : ''}
+          <button id="start-btn" onclick="startGame()">PLAY AGAIN</button>
+        </div>
+      `;
+      spawnParticles();
+    }
+
+    // ─── Collision ───────────────────────────────────────────────────────────
+    function checkCollisions() {
+      if (isDead || playerHop.active) return;
+      const px = playerGroup.position.x;
+      const pr = playerGrid.row;
+      const rd = rowData.get(pr);
+      if (!rd) return;
+
+      if (rd.type === 'road') {
+        for (const obj of rd.objects) {
+          const cx = obj.mesh.position.x;
+          if (Math.abs(px - cx) < 0.62) killPlayer('car');
+        }
+      } else if (rd.type === 'water') {
+        // Must be on a log
+        let onLog = false;
+        for (const obj of rd.objects) {
+          const logX = obj.mesh.position.x;
+          const hw = obj.width / 2;
+          if (px > logX - hw - 0.1 && px < logX + hw + 0.1) {
+            onLog = true;
+            // Ride the log
+            playerGroup.position.x = THREE.MathUtils.clamp(
+              playerGroup.position.x + obj.dir * obj.speed,
+              gridToWorld(0) - TILE, gridToWorld(COLS - 1) + TILE
+            );
+            playerGrid.col = worldToGrid(playerGroup.position.x);
+            break;
+          }
+        }
+        if (!onLog) killPlayer('water');
+
+        // Fell off screen
+        if (playerGroup.position.x < gridToWorld(0) - TILE || playerGroup.position.x > gridToWorld(COLS - 1) + TILE) {
+          killPlayer('water');
+        }
+      }
+    }
+
+    // ─── Particles ───────────────────────────────────────────────────────────
+    function spawnParticles() {
+      const container = document.getElementById('particles');
+      if (!container) return;
+      container.innerHTML = '';
+      const colors = ['rgba(255,220,80,0.7)', 'rgba(255,160,40,0.6)', 'rgba(255,255,180,0.65)', 'rgba(100,220,255,0.5)'];
+      for (let i = 0; i < 18; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        p.style.cssText = `
+          left: ${Math.random() * 100}%;
+          width: ${4 + Math.random() * 6}px;
+          height: ${4 + Math.random() * 6}px;
+          background: ${colors[Math.floor(Math.random() * colors.length)]};
+          animation-duration: ${4 + Math.random() * 5}s;
+          animation-delay: ${Math.random() * 4}s;
+        `;
+        container.appendChild(p);
+      }
+    }
+
+    // ─── Game Loop ────────────────────────────────────────────────────────────
+    window.startGame = function() {
+      document.getElementById('overlay').classList.add('hidden');
+
+      // Reset
+      score = 0; maxRow = 0; isDead = false;
+      playerGrid = { row: 0, col: Math.floor(COLS / 2) };
+      playerGroup.position.set(gridToWorld(playerGrid.col), 0.15, -playerGrid.row * TILE);
+      playerGroup.rotation.set(0, 0, 0);
+      playerGroup.scale.set(1, 1, 1);
+      playerHop = { active: false };
+      deathAnim = { active: false };
+      pendingMove = null;
+
+      document.getElementById('score-display').textContent = '0';
+
+      // Clear old rows
+      for (const g of rowGroups.values()) scene.remove(g);
+      rowGroups.clear();
+      rowData.clear();
+      for (let r = -2; r <= VISIBLE_ROWS; r++) generateRow(r);
+
+      isPlaying = true;
+      gameStarted = true;
+    };
+
+    const clock = new THREE.Clock();
+    let accum = 0;
+    const FIXED_STEP = 1 / 60;
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const delta = Math.min(clock.getDelta(), 0.1);
+      accum += delta;
+
+      while (accum >= FIXED_STEP) {
+        accum -= FIXED_STEP;
+        tick(FIXED_STEP);
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    function tick(dt) {
+      if (!isPlaying) return;
+
+      waterMat.uniforms.uTime.value += dt;
+
+      // Move vehicles / logs
+      for (const [ri, rd] of rowData) {
+        if (!rd.objects) continue;
+        for (const obj of rd.objects) {
+          if (obj.type === 'car' || obj.type === 'log') {
+            obj.mesh.position.x += obj.dir * obj.speed;
+            const limit = (COLS / 2 + 1) * TILE;
+            if (obj.mesh.position.x > limit) obj.mesh.position.x = -limit;
+            if (obj.mesh.position.x < -limit) obj.mesh.position.x = limit;
+          }
+        }
+      }
+
+      // Process hop
+      if (pendingMove && !playerHop.active && !isDead) {
+        tryMove(pendingMove);
+        pendingMove = null;
+      }
+
+      if (playerHop.active) {
+        playerHop.t = Math.min(playerHop.t + dt * 7, 1);
+        const t = playerHop.t;
+        const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+        playerGroup.position.lerpVectors(playerHop.from, playerHop.to, ease);
+        // Arc
+        const arc = Math.sin(t * Math.PI) * 0.45;
+        playerGroup.position.y = playerHop.to.y + arc;
+        // Squash on land
+        if (t > 0.85) {
+          const sq = 1 + (1 - t) * 0.8;
+          playerGroup.scale.set(sq, 2 - sq, sq);
+        } else {
+          playerGroup.scale.set(1, 1, 1);
+        }
+        // Rotation toward direction
+        const targets = { up: Math.PI, down: 0, left: -Math.PI/2, right: Math.PI/2 };
+        if (playerHop.dir) {
+          const tY = targets[playerHop.dir];
+          playerGroup.rotation.y = THREE.MathUtils.lerp(playerGroup.rotation.y, tY, 0.35);
+        }
+        if (t >= 1) { playerHop.active = false; playerGroup.scale.set(1, 1, 1); }
+      }
+
+      // Death animation
+      if (deathAnim.active) {
+        deathAnim.t += dt;
+        const t = Math.min(deathAnim.t * 2, 1);
+        playerGroup.scale.y = Math.max(0.01, 1 - t);
+        playerGroup.scale.x = 1 + t * 0.5;
+        playerGroup.scale.z = 1 + t * 0.5;
+        playerGroup.position.y = 0.15 * (1 - t);
+      }
+
+      if (!isDead) checkCollisions();
+
+      // Smooth camera follow (player moves in -z; camera stays behind at +z)
+      cameraTarget.set(playerGroup.position.x * 0.15, 12, playerGroup.position.z + 10);
+      camera.position.lerp(cameraTarget, 0.08);
+      camera.lookAt(playerGroup.position.x * 0.1, 0, playerGroup.position.z - 1);
+
+      // Sun follows player
+      sun.position.x = playerGroup.position.x + 8;
+      sun.position.z = playerGroup.position.z + 8;
+    }
+
+    animate();
+
+    // ─── Resize ───────────────────────────────────────────────────────────────
+    window.addEventListener('resize', () => {
+      const W = window.innerWidth, H = window.innerHeight;
+      camera.aspect = W / H;
+      camera.updateProjectionMatrix();
+      renderer.setSize(W, H);
+    });
+  </script>
+</body>
+</html>
